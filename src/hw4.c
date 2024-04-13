@@ -1,7 +1,18 @@
 #include "hw4.h"
 
 void initialize_game(ChessGame *game) {
-    (void)game;
+    strcpy(game->chessboard[0], "rnbqkbnr");
+    strcpy(game->chessboard[1], "pppppppp");
+    for (int i = 2; i < 6; i++) {
+        strcpy(game->chessboard[i], "........");
+    }
+    strcpy(game->chessboard[6], "PPPPPPPP");
+    strcpy(game->chessboard[7], "RNBQKBNR");
+
+    game->moveCount = 0;
+    game->capturedCount = 0;
+    game->currentPlayer = WHITE_PLAYER;
+
 }
 
 void chessboard_to_fen(char fen[], ChessGame *game) {
