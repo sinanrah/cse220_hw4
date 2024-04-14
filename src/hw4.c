@@ -34,72 +34,62 @@ bool is_empty_space(char ch) {
     return ch == '.';
 }
 
-bool is_valid_pawn_move(char piece, int src_row, int src_col, int dest_row, int dest_col, ChessGame *game) {
-    int start_row = src_row - 1;
-    int end_row = dest_row - 1;
-    int start_col = src_col - 1;
-    int end_col = dest_col - 1;
-    char end = game-> chessboard[end_row][end_col];
+bool is_valid_pawn_move(char piece, int src_row, int src_col, int dest_row, int dest_col, ChessGame *game) {    
+    int row_diff = dest_row - src_row;
+    int col_diff = abs(dest_col - src_col);
+    int row_change = (piece == 'p') ? 1 : -1; 
 
-    // check if pawn is moving more than 2 rows
-    if (abs(dest_row - src_row > 2)) {return false;} 
-   
-    // check pawn direction
-    if (dest_row - src_row > 0 && !is_black_piece(piece)) {return false;}
-    if (dest_row - src_row < 0 && !is_white_piece(piece)) {return false;}
+    // check if pawn is moving more than 2 rows or not at all, or more than 1 column
+    if (abs(row_diff) > 2 || row_diff == 0 || col_diff > 1) return false;
 
-    // check if at starting row when moving 2 spaces
-    if (abs(dest_row - src_row) == 2) {
-        if (src_row != 2 || src_row != 7) {return false;}
+    // check if pawn direction is correct
+    if ((piece == 'P' && row_diff >= 0) || (piece == 'p' && row_diff <= 0)) return false;
+
+    // moving 2 spaces
+    if (abs(row_diff) == 2) {
+        // check if at starting row
+        if ((piece == 'P' && src_row != 6) || (piece == 'p' && src_row != 1)) return false;
+        // check if pieces are in the way
+        if (!is_empty_space(game->chessboard[src_row + row_change][src_col]) ||
+            !is_empty_space(game->chessboard[dest_row][src_col])) {
+            return false;
+        }
     }
 
-    // check if moving diagonally / capturing correctly
-    if (src_col != dest_col) {
-        if (is_empty_space(end)) {return false;}
-        if (is_black_piece(piece) && is_black_piece(end)) {return false;}
-        if (is_white_piece(piece) && is_white_piece(end)) {return false;}    
-    } else {
-    // if moving straight, check if there are pieces in the way
-        if (is_black_piece(piece)) {
-            for (int i = start_row + 1; i <= end_row; i++) {
-                if (!is_empty_space(game->chessboard[i][start_col])) {return false;}
-            }
+    // check if moving diagonally and capturing correctly
+    if (col_diff == 1) {
+        if (abs(row_diff) != 1 || is_empty_space(game->chessboard[dest_row][dest_col])) return false; // cant diag move to empty space
+        if ((is_white_piece(piece) && is_white_piece(game->chessboard[dest_row][dest_col])) ||
+            (is_black_piece(piece) && is_black_piece(game->chessboard[dest_row][dest_col]))) return false; // can't capture own piece
+    } else if (col_diff == 0) {
+        // check if pieces are in the way if moving straight
+        int current_row = src_row + row_change;
+        while ((piece == 'P' ? current_row > dest_row : current_row < dest_row)) {
+            if (!is_empty_space(game->chessboard[current_row][src_col])) return false;
+            current_row += row_change;
         }
     }
 
     return true;
 }
 
+
 bool is_valid_rook_move(int src_row, int src_col, int dest_row, int dest_col, ChessGame *game) {
     if (src_row != dest_row && src_col != dest_col) { return false;}        // ensure rook is moving H or V
     if (src_row == dest_row && src_col == dest_col) { return false;}        // ensure it's moving at all
     
-    int start_row = src_row - 1;
-    int end_row = dest_row - 1;
-    int start_col = src_col - 1;
-    int end_col = dest_col - 1;
+    // set increment / decrement to row or col depending on what direction the rook is moving, both l/r and u/d
+    int row_change = (dest_row > src_row) ? 1 : (dest_row < src_row) ? -1 : 0; 
+    int col_change = (dest_col > src_col) ? 1 : (dest_col < src_col) ? -1 : 0;
+    int current_row = src_row + row_change;
+    int current_col = src_col + col_change;
 
-    // if rook moving horizontally
-    if (src_row == dest_row) {                                 
-        for (int i = start_col + 1; i < end_col; i++) {
-            // check if there is a piece in the way
-            if (!is_empty_space(game->chessboard[start_row][i])) {            
-                printf("Piece in the way of [%d][%d] to [%d][%d].\n",
-                src_row, src_col, dest_row, dest_col);
-                return false;
-            }
-        }
-    // if rook moving vertically
-    } else {    
-       for (int i = start_row + 1; i < end_row; i++) {
-            // check if there is a piece in the way
-            if (!is_empty_space(game->chessboard[i][start_col])) {            
-                printf("Piece in the way of [%d][%d] to [%d][%d].\n",
-                src_row, src_col, dest_row, dest_col);
-                return false;
-            }
-        }                     
-    }
+    // check if there are pieces in the way
+    while (current_row != dest_row || current_col != dest_col) {
+        if (!is_empty_space(game->chessboard[current_row][current_col])) return false; 
+        current_row += row_change;
+        current_col += col_change;
+    }                   
 
     return true;
 }
