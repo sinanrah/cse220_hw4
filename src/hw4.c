@@ -263,6 +263,7 @@ int make_move(ChessGame *game, ChessMove *move, bool is_client, bool validate_mo
 
     game->currentPlayer = (game->currentPlayer == WHITE_PLAYER) ? BLACK_PLAYER : WHITE_PLAYER;
 
+    display_chessboard(game);
     return 0;
 
 }
