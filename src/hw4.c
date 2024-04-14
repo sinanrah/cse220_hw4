@@ -184,6 +184,7 @@ void fen_to_chessboard(const char *fen, ChessGame *game) {
             // PARSE_MOVE_INVALID_PROMOTION
             if (move[4] != 'q' && move[4] != 'r' && move[4] != 'b' && move[4] != 'n') 
                 return PARSE_MOVE_INVALID_PROMOTION;
+        }
 
         // populate parsed_move fields
         parsed_move->startSquare[0] = move[0];
@@ -192,7 +193,7 @@ void fen_to_chessboard(const char *fen, ChessGame *game) {
 
         parsed_move->endSquare[0] = move[2];
         parsed_move->endSquare[1] = move[3];
-        
+
         if (length == 5) {
             parsed_move->endSquare[2] = move[4];
             parsed_move->endSquare[3] = '\0';
@@ -201,14 +202,6 @@ void fen_to_chessboard(const char *fen, ChessGame *game) {
         }
 
     return 0;
-            
-
-            
-
-
-        }
-
-        return -999;
     }
 
 int make_move(ChessGame *game, ChessMove *move, bool is_client, bool validate_move) {
