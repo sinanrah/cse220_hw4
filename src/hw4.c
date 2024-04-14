@@ -167,49 +167,104 @@ void fen_to_chessboard(const char *fen, ChessGame *game) {
     (void)game;
 }
 
-    int parse_move(const char *move, ChessMove *parsed_move) {
-        int length = strlen(move);
-        // PARSE_MOVE_INVALID_FORMAT
-        if (length != 4 && length != 5) return PARSE_MOVE_INVALID_FORMAT;
-        if (move[0] < 'a' || move[0] > 'h') return PARSE_MOVE_INVALID_FORMAT;
-        if (move[2] < 'a' || move[2] > 'h') return PARSE_MOVE_INVALID_FORMAT;
-        // PARSE_OUT_OF_BOUNDS
-        if (move[1] < '1' || move[1] > '8') return PARSE_MOVE_OUT_OF_BOUNDS;
-        if (move[3] < '1' || move[3] > '8') return PARSE_MOVE_OUT_OF_BOUNDS;
+int parse_move(const char *move, ChessMove *parsed_move) {
+    int length = strlen(move);
+    // PARSE_MOVE_INVALID_FORMAT
+    if (length != 4 && length != 5) return PARSE_MOVE_INVALID_FORMAT;
+    if (move[0] < 'a' || move[0] > 'h') return PARSE_MOVE_INVALID_FORMAT;
+    if (move[2] < 'a' || move[2] > 'h') return PARSE_MOVE_INVALID_FORMAT;
+    // PARSE_OUT_OF_BOUNDS
+    if (move[1] < '1' || move[1] > '8') return PARSE_MOVE_OUT_OF_BOUNDS;
+    if (move[3] < '1' || move[3] > '8') return PARSE_MOVE_OUT_OF_BOUNDS;
 
-        if (length == 5) {
-            // PARSE_MOVE_INVALID_DESTINATION
-            if (move[3] != '1' && move[3] != '8') return PARSE_MOVE_INVALID_DESTINATION;
+    if (length == 5) {
+        // PARSE_MOVE_INVALID_DESTINATION
+        if (move[3] != '1' && move[3] != '8') return PARSE_MOVE_INVALID_DESTINATION;
 
-            // PARSE_MOVE_INVALID_PROMOTION
-            if (move[4] != 'q' && move[4] != 'r' && move[4] != 'b' && move[4] != 'n') 
-                return PARSE_MOVE_INVALID_PROMOTION;
-        }
-
-        // populate parsed_move fields
-        parsed_move->startSquare[0] = move[0];
-        parsed_move->startSquare[1] = move[1];
-        parsed_move->startSquare[2] = '\0';
-
-        parsed_move->endSquare[0] = move[2];
-        parsed_move->endSquare[1] = move[3];
-
-        if (length == 5) {
-            parsed_move->endSquare[2] = move[4];
-            parsed_move->endSquare[3] = '\0';
-        } else {
-            parsed_move->endSquare[2] = '\0';
-        }
-
-    return 0;
+        // PARSE_MOVE_INVALID_PROMOTION
+        if (move[4] != 'q' && move[4] != 'r' && move[4] != 'b' && move[4] != 'n') 
+            return PARSE_MOVE_INVALID_PROMOTION;
     }
 
+    // populate parsed_move fields
+    parsed_move->startSquare[0] = move[0];
+    parsed_move->startSquare[1] = move[1];
+    parsed_move->startSquare[2] = '\0';
+
+    parsed_move->endSquare[0] = move[2];
+    parsed_move->endSquare[1] = move[3];
+
+    if (length == 5) {
+        parsed_move->endSquare[2] = move[4];
+        parsed_move->endSquare[3] = '\0';
+    } else {
+        parsed_move->endSquare[2] = '\0';
+    }
+
+    return 0;
+}
+
 int make_move(ChessGame *game, ChessMove *move, bool is_client, bool validate_move) {
-    (void)game;
-    (void)move;
-    (void)is_client;
-    (void)validate_move;
-    return -999;
+    // cast move chars to int
+    int src_row = '8' - move->startSquare[1]; // subtract from '8' because it is inverted and also 0 indexed
+    int src_col = move->startSquare[0] - 'a';
+    int dest_row = '8' - move->endSquare[1];
+    int dest_col = move->endSquare[0] - 'a';
+
+    char piece = game->chessboard[src_row][src_col];
+
+    if (validate_move) {
+        // MOVE OUT OF TURN
+        if ((is_client && game->currentPlayer != WHITE_PLAYER) || (!is_client && game->currentPlayer != BLACK_PLAYER)) {
+            return MOVE_OUT_OF_TURN;
+        }
+        // MOVE NOTHING
+        if (is_empty_space(piece)) {
+            return MOVE_NOTHING;
+        }
+        // MOVE WRONG COLOR
+        if ((is_client && is_black_piece(piece)) || (!is_client && is_white_piece(piece))) {
+            return MOVE_WRONG_COLOR;
+        }
+        // MOVE SUS
+        if ((is_white_piece(piece) && is_white_piece(game->chessboard[dest_row][dest_col])) ||
+            (is_black_piece(piece) && is_black_piece(game->chessboard[dest_row][dest_col]))) {
+            return MOVE_SUS;
+        }
+        // MOVE NOT A PAWN
+        if (strlen(move->endSquare) == 5 && !((piece == 'P' && is_client) || (piece == 'p' && !is_client))) {
+            return MOVE_NOT_A_PAWN;
+        }
+        // MOVE MISSING PROMOTION
+        if (strlen(move->endSquare) == 4 && ((piece == 'P' && dest_row == 0) || (piece == 'p' && dest_row == 7))) {
+            return MOVE_MISSING_PROMOTION;
+        }
+        // MOVE WRONG
+        if (!is_valid_move(piece, src_row, src_col, dest_row, dest_col, game)) {
+            return MOVE_WRONG;
+        }
+    }
+
+    // update game moves and movecount
+    game->moves[game->moveCount] = *move;
+    game->moveCount++;
+
+    if (!is_empty_space(game->chessboard[dest_row][dest_col])) {
+        game->capturedPieces[game->capturedCount] = game->chessboard[dest_row][dest_col];
+        game->capturedCount++;
+    }
+
+    game->chessboard[dest_row][dest_col] = piece;
+    game->chessboard[src_row][src_col] = '.';
+
+    if (strlen(move->endSquare) == 5) {
+        game->chessboard[dest_row][dest_col] = move->endSquare[2];
+    }
+
+    game->currentPlayer = (game->currentPlayer == WHITE_PLAYER) ? BLACK_PLAYER : WHITE_PLAYER;
+
+    return 0;
+
 }
 
 int send_command(ChessGame *game, const char *message, int socketfd, bool is_client) {
