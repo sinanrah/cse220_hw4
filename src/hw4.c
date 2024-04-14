@@ -13,26 +13,69 @@ void initialize_game(ChessGame *game) {
     game->capturedCount = 0;
     game->currentPlayer = WHITE_PLAYER;
 
+    display_chessboard(game);
+
+}
+
+bool is_white_piece(char current_char) {
+    const char *white_pieces = "RNBQKP";
+    return  strchr(white_pieces, current_char);
+}
+
+bool is_black_piece(char current_char) {
+    const char *black_pieces = "rnbqkp";
+    return  strchr(black_pieces, current_char);
+}
+
+bool is_empty_space(char current_char) {
+    return current_char == '.';
 }
 
 void chessboard_to_fen(char fen[], ChessGame *game) {
-    (void)fen;
-    (void)game;
+    int fen_index;
+    int current_row, current_col;
+    int empty_spaces;
+
+    // iterate each current_row
+    for (current_row = 0; current_row < 8; current_row++) {
+        empty_spaces = 0;
+        // iterate current_col
+        for (current_col = 0; current_col < 8; current_col++) {
+            char piece = game->chessboard[current_row][current_col];
+
+            if (is_empty_space(piece)) {
+                empty_spaces++;
+            } else {
+                // if current space isnt empty but there are empty spaces before, append to fen
+                if (empty_spaces > 0) {
+                    fen[fen_index++] = empty_spaces + '0'; // turn it into char
+                    empty_spaces = 0; // put empty space count back to 0
+                }
+
+                // append the piece character to the fen
+                fen[fen_index++] = piece;
+            }
+        }
+
+        // if empty space at end of current_row, append count to fen
+        if (empty_spaces > 0) {
+            fen[fen_index++] = empty_spaces + '0';
+        }
+
+        // append / for every current_row but last
+        if (current_row < 7) {
+            fen[fen_index++] = '/';
+        }
+    }
+
+    // append space for turn
+    fen[fen_index++] = ' ';
+    fen[fen_index++] = (game->currentPlayer == WHITE_PLAYER) ? 'w' : 'b';
+
+    fen[fen_index] = '\0';
 }
 
-bool is_white_piece(char ch) {
-    const char *white_pieces = "RNBQKP";
-    return  strchr(white_pieces, ch);
-}
 
-bool is_black_piece(char ch) {
-    const char *black_pieces = "rnbqkp";
-    return  strchr(black_pieces, ch);
-}
-
-bool is_empty_space(char ch) {
-    return ch == '.';
-}
 
 bool is_valid_pawn_move(char piece, int src_row, int src_col, int dest_row, int dest_col, ChessGame *game) {    
     int row_difference = dest_row - src_row;
@@ -48,7 +91,7 @@ bool is_valid_pawn_move(char piece, int src_row, int src_col, int dest_row, int 
     // moving 2 spaces
     if (abs(row_difference) == 2) {
         if (col_difference > 0) return false; // can't move diagonally and move 2 spaces
-        // check if at starting row
+        // check if at starting current_row
         if ((piece == 'P' && src_row != 6) || (piece == 'p' && src_row != 1)) return false;
         // check if pieces are in the way
         if (!is_empty_space(game->chessboard[src_row + row_change][src_col]) ||
@@ -74,7 +117,7 @@ bool is_valid_rook_move(int src_row, int src_col, int dest_row, int dest_col, Ch
     if (src_row != dest_row && src_col != dest_col) { return false;}        // ensure rook is moving H or V
     if (src_row == dest_row && src_col == dest_col) { return false;}        // ensure it's moving at all
     
-    // set increment / decrement to row or col depending on what direction the rook is moving, both l/r and u/d
+    // set increment / decrement to current_row or current_col depending on what direction the rook is moving, both l/r and u/d
     int row_change = (dest_row > src_row) ? 1 : (dest_row < src_row) ? -1 : 0; 
     int col_change = (dest_col > src_col) ? 1 : (dest_col < src_col) ? -1 : 0;
     int current_row = src_row + row_change;
@@ -163,8 +206,42 @@ bool is_valid_move(char piece, int src_row, int src_col, int dest_row, int dest_
 }
 
 void fen_to_chessboard(const char *fen, ChessGame *game) {
-    (void)fen;
-    (void)game;
+    // initialize indices
+    int current_row = 0;
+    int current_col = 0;
+    int fen_index = 0;
+
+    // clear the borad
+    for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 8; j++) {
+            game->chessboard[i][j] = '.';
+        }
+    }
+
+    // parse fen
+    while (fen[fen_index] != ' ') {
+        char current_char = fen[fen_index];
+
+        if (current_char == '/') {
+            current_row++;
+            current_col = 0;
+        } else if (isdigit(current_char)) {
+            current_col += current_char - '0'; // turn to int
+        } else {
+            game->chessboard[current_row][current_col] = current_char;
+            current_col++;
+        }
+
+        fen_index++;
+    }
+
+    // parse fen to find out whose turn it is
+    fen_index++;    // space
+    if (fen[fen_index] == 'w') {
+        game->currentPlayer = WHITE_PLAYER;
+    } else if (fen[fen_index] == 'b') {
+        game->currentPlayer = BLACK_PLAYER;
+    }
 }
 
 int parse_move(const char *move, ChessMove *parsed_move) {
