@@ -35,39 +35,35 @@ bool is_empty_space(char ch) {
 }
 
 bool is_valid_pawn_move(char piece, int src_row, int src_col, int dest_row, int dest_col, ChessGame *game) {    
-    int row_diff = dest_row - src_row;
-    int col_diff = abs(dest_col - src_col);
+    int row_difference = dest_row - src_row;
+    int col_difference = abs(dest_col - src_col);
     int row_change = (piece == 'p') ? 1 : -1; 
 
-    // check if pawn is moving more than 2 rows or not at all, or more than 1 column
-    if (abs(row_diff) > 2 || row_diff == 0 || col_diff > 1) return false;
+    // check if pawn is moving more than 2 rows or more than 1 column
+    if (abs(row_difference) > 2 || col_difference > 1) return false;
 
     // check if pawn direction is correct
-    if ((piece == 'P' && row_diff >= 0) || (piece == 'p' && row_diff <= 0)) return false;
+    if ((piece == 'P' && row_difference > 0) || (piece == 'p' && row_difference < 0)) return false;
 
     // moving 2 spaces
-    if (abs(row_diff) == 2) {
+    if (abs(row_difference) == 2) {
+        if (col_difference > 0) return false; // can't move diagonally and move 2 spaces
         // check if at starting row
         if ((piece == 'P' && src_row != 6) || (piece == 'p' && src_row != 1)) return false;
         // check if pieces are in the way
         if (!is_empty_space(game->chessboard[src_row + row_change][src_col]) ||
-            !is_empty_space(game->chessboard[dest_row][src_col])) {
-            return false;
-        }
+            !is_empty_space(game->chessboard[dest_row][src_col])) return false;
+        return true;
     }
-
     // check if moving diagonally and capturing correctly
-    if (col_diff == 1) {
-        if (abs(row_diff) != 1 || is_empty_space(game->chessboard[dest_row][dest_col])) return false; // cant diag move to empty space
+    if (col_difference == 1) {
+        if (abs(row_difference) != 1 || is_empty_space(game->chessboard[dest_row][dest_col])) return false; // cant diag move to empty space
         if ((is_white_piece(piece) && is_white_piece(game->chessboard[dest_row][dest_col])) ||
             (is_black_piece(piece) && is_black_piece(game->chessboard[dest_row][dest_col]))) return false; // can't capture own piece
-    } else if (col_diff == 0) {
+        return true;
+    } else if (col_difference == 0) {
         // check if pieces are in the way if moving straight
-        int current_row = src_row + row_change;
-        while ((piece == 'P' ? current_row > dest_row : current_row < dest_row)) {
-            if (!is_empty_space(game->chessboard[current_row][src_col])) return false;
-            current_row += row_change;
-        }
+        if (!is_empty_space(game->chessboard[dest_row][dest_col])) return false;
     }
 
     return true;
@@ -89,52 +85,80 @@ bool is_valid_rook_move(int src_row, int src_col, int dest_row, int dest_col, Ch
         if (!is_empty_space(game->chessboard[current_row][current_col])) return false; 
         current_row += row_change;
         current_col += col_change;
-    }                   
+    }    
+
+    if ((is_white_piece(game->chessboard[src_row][src_col]) && is_white_piece(game->chessboard[dest_row][dest_col])) ||
+    (is_black_piece(game->chessboard[src_row][src_col]) && is_black_piece(game->chessboard[dest_row][dest_col]))) return false;               
 
     return true;
 }
 
 bool is_valid_knight_move(int src_row, int src_col, int dest_row, int dest_col) {
-    (void)src_row;
-    (void)src_col;
-    (void)dest_row;
-    (void)dest_col;
-    return false;
+    int row_difference = abs(src_row - dest_row);
+    int col_difference = abs(src_col - dest_col);
+    // change in rows / cols have to be 2 and 1 or 1 and 2
+    return (row_difference == 1 && col_difference == 2) || (row_difference == 2 && col_difference == 1);
 }
 
 bool is_valid_bishop_move(int src_row, int src_col, int dest_row, int dest_col, ChessGame *game) {
-    (void)src_row;
-    (void)src_col;
-    (void)dest_row;
-    (void)dest_col;
-    (void)game;
-    return false;
+    int row_difference = abs(dest_row - src_row);
+    int col_difference = abs(dest_col - src_col);
+    int row_increment = (dest_row - src_row > 0) ? 1 : -1;
+    int col_increment = (dest_col - src_col > 0) ? 1 : -1;
+
+    if (row_difference != col_difference) return false; // needs to move the same amount of rows and cols
+    int current_row = src_row + row_increment;
+    int current_col = src_col + col_increment;
+    // checck if pieces are in the way
+    while (current_row != dest_row) {
+        if (!is_empty_space(game->chessboard[current_row][current_col])) return false;
+        current_row += row_increment;
+        current_col += col_increment;
+    }
+
+
+    return true;
 }
 
 bool is_valid_queen_move(int src_row, int src_col, int dest_row, int dest_col, ChessGame *game) {
-    (void)src_row;
-    (void)src_col;
-    (void)dest_row;
-    (void)dest_col;
-    (void)game;
-    return false;
+    // can move either like a bishop or rook
+    return is_valid_rook_move(src_row, src_col, dest_row, dest_col, game) ||
+           is_valid_bishop_move(src_row, src_col, dest_row, dest_col, game);
 }
 
 bool is_valid_king_move(int src_row, int src_col, int dest_row, int dest_col) {
-    (void)src_row;
-    (void)src_col;
-    (void)dest_row;
-    (void)dest_col;
-    return false;
+    int row_difference = abs(src_row - dest_row);
+    int col_difference = abs(src_col - dest_col);
+    // can only more one space H, V, or D
+    return row_difference <= 1 && col_difference <= 1;
 }
 
 bool is_valid_move(char piece, int src_row, int src_col, int dest_row, int dest_col, ChessGame *game) {
-    (void)piece;
-    (void)src_row;
-    (void)src_col;
-    (void)dest_row;
-    (void)dest_col;
-    (void)game;
+    switch (piece) {
+        case 'p':
+        case 'P':
+            return is_valid_pawn_move(piece, src_row, src_col, dest_row, dest_col, game);
+        case 'r':
+        case 'R':
+            return is_valid_rook_move(src_row, src_col, dest_row, dest_col, game);
+        case 'n':
+        case 'N':
+            return is_valid_knight_move(src_row, src_col, dest_row, dest_col);
+        case 'b':
+        case 'B':
+            return is_valid_bishop_move(src_row, src_col, dest_row, dest_col, game);
+        case 'q':
+        case 'Q':
+            return is_valid_queen_move(src_row, src_col, dest_row, dest_col, game);
+        case 'k':
+        case 'K':
+            return is_valid_king_move(src_row, src_col, dest_row, dest_col);
+        default:
+            return false;
+    }
+
+
+
     return false;
 }
 
