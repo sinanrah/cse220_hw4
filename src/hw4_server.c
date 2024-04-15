@@ -5,6 +5,7 @@ int main() {
     struct sockaddr_in address;
     int opt = 1;
     int addrlen = sizeof(address);
+    
 
     // Create socket
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -46,10 +47,13 @@ int main() {
 
     INFO("Server accepted connection");
 
-    while (1) {
-        // Fill this in
-    }
+    ChessGame game;
+    initialize_game(&game);
 
+    while (1) {   
+        // 
+     }
+     
     close(listenfd);
     return 0;
 }
