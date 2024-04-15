@@ -13,8 +13,6 @@ void initialize_game(ChessGame *game) {
     game->capturedCount = 0;
     game->currentPlayer = WHITE_PLAYER;
 
-    display_chessboard(game);
-
 }
 
 bool is_white_piece(char current_char) {
@@ -74,7 +72,6 @@ void chessboard_to_fen(char fen[], ChessGame *game) {
 
     fen[fen_index] = '\0';
 }
-
 
 
 bool is_valid_pawn_move(char piece, int src_row, int src_col, int dest_row, int dest_col, ChessGame *game) {    
@@ -340,40 +337,135 @@ int make_move(ChessGame *game, ChessMove *move, bool is_client, bool validate_mo
 
     game->currentPlayer = (game->currentPlayer == WHITE_PLAYER) ? BLACK_PLAYER : WHITE_PLAYER;
 
-    display_chessboard(game);
     return 0;
 
 }
 
+// use pointer arithmetic for arg
 int send_command(ChessGame *game, const char *message, int socketfd, bool is_client) {
-    (void)game;
-    (void)message;
-    (void)socketfd;
-    (void)is_client;
-    return -999;
+    if (strncmp(message, "/move", 5) == 0) {
+        ChessMove move;
+        if (parse_move(message + 6, &move) == 0) {
+            if (make_move(game, &move, is_client, true) == 0) {
+                send(socketfd, message, strlen(message), 0);
+                return COMMAND_MOVE;
+            }
+        }
+        return COMMAND_ERROR;
+    } else if (strcmp(message, "/forfeit") == 0) {
+        send(socketfd, message, strlen(message), 0);
+        return COMMAND_FORFEIT;
+    } else if (strcmp(message, "/chessboard") == 0) {
+        display_chessboard(game);
+        return COMMAND_DISPLAY;
+    } else if (strncmp(message, "/import", 7) == 0 && !is_client) {
+        fen_to_chessboard(message + 8, game);
+        send(socketfd, message, strlen(message), 0);
+        return COMMAND_IMPORT;
+    } else if (strncmp(message, "/load", 5) == 0) {
+        char arg[256];
+        strncpy(arg, message + 6, sizeof(arg) - 1);
+        arg[sizeof(arg) - 1] = '\0';
+        
+        char *user = strtok(arg, " ");
+        char *save_number_string = strtok(NULL, " ");
+        if (user != NULL && save_number_string != NULL) {
+            int save_number = atoi(save_number_string);
+            if (load_game(game, user, "game_database.txt", save_number) == 0) {
+                send(socketfd, message, strlen(message), 0);
+                return COMMAND_LOAD;
+            }
+        }
+        return COMMAND_ERROR;
+    } else if (strncmp(message, "/save", 5) == 0) {
+        char user[256];
+        strncpy(user, message + 6, sizeof(user) - 1);
+        user[sizeof(user) - 1] = '\0';
+        
+        if (save_game(game, user, "game_database.txt") == 0) {
+            return COMMAND_SAVE;
+        }
+        return COMMAND_ERROR;
+    }
+    
+    return COMMAND_UNKNOWN;
 }
 
 int receive_command(ChessGame *game, const char *message, int socketfd, bool is_client) {
-    (void)game;
-    (void)message;
-    (void)socketfd;
-    (void)is_client;
-    return -999;
+    if (strncmp(message, "/move", 5) == 0) {
+        ChessMove move;
+        if (parse_move(message + 6, &move) == 0) {
+            make_move(game, &move, is_client, false);
+            return COMMAND_MOVE;
+        }
+        return COMMAND_ERROR;
+    } else if (strcmp(message, "/forfeit") == 0) {
+        close(socketfd);
+        return COMMAND_FORFEIT;
+    } else if (strncmp(message, "/import", 7) == 0 && is_client) {
+        fen_to_chessboard(message + 8, game);
+        return COMMAND_IMPORT;
+    } else if (strncmp(message, "/load", 5) == 0) {
+        char arg[256];
+        strncpy(arg, message + 6, sizeof(arg) - 1);
+        arg[sizeof(arg) - 1] = '\0';
+        
+        char *user = strtok(arg, " ");
+        char *save_number_string = strtok(NULL, " ");
+        if (user != NULL && save_number_string != NULL) {
+            int save_number = atoi(save_number_string);
+            if (load_game(game, user, "game_database.txt", save_number) == 0) {
+                return COMMAND_LOAD;
+            }
+        }
+        return COMMAND_ERROR;
+    }
+    
+    return -1;
 }
 
-int save_game(ChessGame *game, const char *username, const char *db_filename) {
-    (void)game;
-    (void)username;
-    (void)db_filename;
-    return -999;
+int save_game(ChessGame *game, const char *user, const char *db_filename) {
+    // check user
+    if (strlen(user) == 0 || user == NULL || strchr(user, ' ') != NULL) return -1; // strchr checks for a char in string
+    
+    FILE *file = fopen(db_filename, "a"); // append
+    if (file == NULL) {
+        return -1;
+    }
+    char fen[256];
+    chessboard_to_fen(fen, game); // get fen of current game
+    fprintf(file, "%s:%s\n", user, fen);
+    fclose(file);
+    return 0;
 }
 
-int load_game(ChessGame *game, const char *username, const char *db_filename, int save_number) {
-    (void)game;
-    (void)username;
-    (void)db_filename;
-    (void)save_number;
-    return -999;
+int load_game(ChessGame *game, const char *user, const char *db_filename, int save_number) {
+    FILE *file = fopen(db_filename, "r"); // read   
+    if (file == NULL) {
+        return -1;
+    }
+    char line[256];
+    int save_count = 0; // save count for user
+
+    while (fgets(line, sizeof(line), file)) { // fgets until end
+        char *token = strtok(line, ":"); // split lines between :
+        if (strcmp(token, user) == 0) { // check for same user n increment save count for the user 
+            save_count++;
+            if (save_count == save_number) {
+                token = strtok(NULL, "\n"); // end of fen string should be newline
+                if (token == NULL) {
+                    fclose(file);
+                    return -1; // missing fen
+                }
+                fen_to_chessboard(token, game); // parse fen, load into game
+                fclose(file);
+                return 0;
+            }
+        }
+    }
+
+    fclose(file);
+    return -1;
 }
 
 void display_chessboard(ChessGame *game) {
